@@ -92,7 +92,7 @@ module.exports = async function handler(req, res) {
   }
 
   const order = await response.json();
-  const approval = order.links?.find((link) => link.rel === "approve")?.href;
+  const approval = order.links?.find((link) => link.rel === "payer-action" || link.rel === "approve")?.href;
   if (!approval) return res.status(502).send("PayPal approval URL unavailable");
 
   return res.redirect(302, approval);
