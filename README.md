@@ -33,7 +33,7 @@ The endpoint verifies the `x-signature-sha256` header against the raw request bo
 Configure this secret in Vercel:
 
 ```
-BMC_WEBHOOK_SECRET=<your-buy-me-a-coffee-webhook-secret>
+BMC_WEBHOOK_SECRET=<your-buy-me-a-coffee-webhook-secret>\nBMC_API_TOKEN=<your-buy-me-a-coffee-developer-api-token>\nGITHUB_TOKEN=<fine-grained-github-token-with-contents-write>
 ```
 
 Never commit the secret to GitHub.
@@ -53,7 +53,7 @@ The webhook:
 
 The Buy Me a Coffee webhook is account-level. The service therefore does **not** assume that a donation belongs to a particular GitHub repository unless reliable attribution is available.
 
-The four supported projects will be connected only after a reliable attribution mechanism is defined.
+The four supported projects are attributed automatically: the README donation link goes through the Vercel `/api/donate?repo=...` redirect, which preserves the repository in the referrer. The webhook then reads the supporter through the Buy Me a Coffee API, extracts `referer`, validates it against the four allowed repositories, and updates only that repository.
 
 ## Local configuration
 
@@ -68,3 +68,15 @@ to your local environment and provide the webhook secret.
 ## Deployment
 
 This project is designed for Vercel Serverless Functions. No framework or dependency installation is required.
+
+
+## Attribution flow
+
+1. Each repository uses a unique link such as `/api/donate?repo=programme-tnt-fr`.
+2. The redirect sets `Referrer-Policy: unsafe-url` and sends the visitor to the common Buy Me a Coffee page.
+3. On `donation.created`, the webhook verifies the HMAC signature.
+4. It queries `/api/v1/supporters/{supporter_id}` and reads the returned `referer`.
+5. Only a referer matching one of the four exact `cyclope205` repositories is accepted.
+6. The matching README is updated; an unknown attribution is ignored rather than guessing.
+
+The Buy Me a Coffee webhook schema itself does not contain the repository source, so the supporter API's `referer` field is used as the attribution bridge. The supporter API documents `referer` as a supporter field.
