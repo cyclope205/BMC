@@ -40,6 +40,7 @@ PayPal requires webhook signature verification; this implementation uses PayPal'
 Configure these in Vercel:
 
 ~~~text
+BMC_APP_URL=https://bmc-eight-red.vercel.app
 BMC_WEBHOOK_SECRET=
 BMC_API_TOKEN=
 GITHUB_TOKEN=
