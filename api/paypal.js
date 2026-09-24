@@ -1,3 +1,5 @@
+const crypto = require("crypto");
+
 const REPOSITORIES = new Set([
   "changelog-traduction",
   "suivi-stock-pellet",
@@ -48,7 +50,8 @@ module.exports = async function handler(req, res) {
     return res.status(400).send("Amount must be between 1 and 1000");
   }
 
-  const origin = `${req.headers["x-forwarded-proto"] || "https"}://${req.headers.host}`;
+  const origin = process.env.BMC_APP_URL;
+  if (!origin) return res.status(500).send("BMC_APP_URL is not configured");
   const token = await getAccessToken();
   const currency = process.env.PAYPAL_CURRENCY || "EUR";
 
@@ -58,7 +61,7 @@ module.exports = async function handler(req, res) {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
       Accept: "application/json",
-      "PayPal-Request-Id": `cyclope205-${repo}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      "PayPal-Request-Id": `cyclope205-${repo}-${crypto.randomUUID()}`,
     },
     body: JSON.stringify({
       intent: "CAPTURE",
