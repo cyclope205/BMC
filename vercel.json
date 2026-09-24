@@ -3,5 +3,11 @@
     "api/webhook.js": {
       "maxDuration": 10
     }
-  }
+  },
+  "rewrites": [
+    {
+      "source": "/paypal/:repo",
+      "destination": "/api/paypal?repo=:repo&amount=5"
+    }
+  ]
 }
