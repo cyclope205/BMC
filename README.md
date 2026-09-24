@@ -1,82 +1,86 @@
-# Buy Me a Coffee — Centralized Donation Service
+# Buy Me a Coffee + PayPal — Centralized Donation Service
 
-Centralized webhook endpoint for Buy Me a Coffee donations supporting the GitHub projects of **cyclope205**.
+Centralized donation service for the GitHub projects of **cyclope205**.
 
-## Purpose
+## Supported providers
 
-This repository centralizes:
+- **Buy Me a Coffee**: `POST /api/webhook`
+- **PayPal**: `POST /api/paypal-webhook`
 
-- Buy Me a Coffee webhook reception
-- HMAC-SHA256 signature verification
-- Donation event normalization
-- Donor-name anonymization
-- Future synchronization with the supported GitHub repositories
+Both providers can update the README of the repository from which the donation was initiated.
 
-## Webhook endpoint
+## Buy Me a Coffee
 
-After deployment on Vercel:
+The BMC endpoint verifies the `x-signature-sha256` HMAC-SHA256 signature against the raw request body before processing `donation.created`.
 
-```
-POST https://<your-vercel-domain>/api/webhook
-```
+Repository attribution uses the repository-specific `/api/donate?repo=...` entry point and the BMC supporter attribution returned by the BMC API. If BMC does not provide a reliable repository attribution, the donation is ignored rather than assigned to the wrong repository.
 
-Configure this URL in **Buy Me a Coffee → Creator Dashboard → Integrations → Webhooks**.
+## PayPal
 
-Supported event:
+Each repository can use:
 
-- `donation.created`
+~~~text
+https://<your-vercel-domain>/api/paypal?repo=<repository>&amount=5
+~~~
 
-The endpoint verifies the `x-signature-sha256` header against the raw request body before processing the event.
+The endpoint creates a PayPal Orders API checkout with a repository-specific `custom_id`. PayPal then returns the payer to the central service, which captures the order.
 
-## Environment variable
+The PayPal webhook listens for `PAYMENT.CAPTURE.COMPLETED`, verifies the webhook signature, reads the order's repository `custom_id`, and updates only the matching README. PayPal documents `custom_id` on purchase units and includes it in completed-capture data. citeturn3search4
 
-Configure this secret in Vercel:
+The PayPal webhook must be configured on the PayPal Developer Dashboard to:
 
-```
-BMC_WEBHOOK_SECRET=<your-buy-me-a-coffee-webhook-secret>\nBMC_API_TOKEN=<your-buy-me-a-coffee-developer-api-token>\nGITHUB_TOKEN=<fine-grained-github-token-with-contents-write>
-```
+~~~text
+https://<your-vercel-domain>/api/paypal-webhook
+~~~
 
-Never commit the secret to GitHub.
+PayPal requires webhook signature verification; this implementation uses PayPal's `verify-webhook-signature` endpoint. citeturn2search1turn2search4
+
+## Environment variables
+
+Configure these in Vercel:
+
+~~~text
+BMC_WEBHOOK_SECRET=
+BMC_API_TOKEN=
+GITHUB_TOKEN=
+
+PAYPAL_ENV=live
+PAYPAL_CLIENT_ID=
+PAYPAL_CLIENT_SECRET=
+PAYPAL_WEBHOOK_ID=
+PAYPAL_CURRENCY=EUR
+~~~
+
+For PayPal sandbox testing, set `PAYPAL_ENV=sandbox` and use sandbox credentials and a sandbox webhook.
+
+## README thank-you blocks
+
+The service keeps provider-specific markers so BMC and PayPal donations can coexist without overwriting each other:
+
+~~~text
+<!--START_SECTION:buy-me-a-coffee-->
+- ☕ **Donor A***** ** — 5 USD (2026-09-24)
+<!--END_SECTION:buy-me-a-coffee-->
+
+<!--START_SECTION:paypal-->
+- 💙 **Donor B***** ** — 10 EUR (2026-09-24)
+<!--END_SECTION:paypal-->
+~~~
+
+Duplicate webhook deliveries are ignored by event ID inside the corresponding provider block.
 
 ## Security
 
-The webhook:
-
-1. accepts POST requests only;
-2. reads the raw request body;
-3. calculates HMAC-SHA256 with `BMC_WEBHOOK_SECRET`;
-4. compares the received signature using a timing-safe comparison;
-5. rejects invalid signatures with HTTP 401;
-6. does not expose the webhook secret in logs or responses.
-
-## Repository attribution
-
-The Buy Me a Coffee webhook is account-level. The service therefore does **not** assume that a donation belongs to a particular GitHub repository unless reliable attribution is available.
-
-The four supported projects are attributed automatically: the README donation link goes through the Vercel `/api/donate?repo=...` redirect, which preserves the repository in the referrer. The webhook then reads the supporter through the Buy Me a Coffee API, extracts `referer`, validates it against the four allowed repositories, and updates only that repository.
-
-## Local configuration
-
-Copy:
-
-```
-.env.example
-```
-
-to your local environment and provide the webhook secret.
+- POST-only webhook endpoints
+- Raw-body signature verification
+- No secrets committed to Git
+- Repository allowlist limited to the four supported projects
+- Unknown repository attribution is rejected
+- PayPal webhook signatures are verified before processing
+- GitHub updates use the configured `GITHUB_TOKEN`
 
 ## Deployment
 
-This project is designed for Vercel Serverless Functions. No framework or dependency installation is required.
+This project is designed for Vercel Serverless Functions and requires no framework or dependency installation.
 
-
-## Attribution flow
-
-1. Each repository uses a unique link such as `/api/donate?repo=programme-tnt-fr`.
-2. The redirect sets `Referrer-Policy: unsafe-url` and sends the visitor to the common Buy Me a Coffee page.
-3. On `donation.created`, the webhook verifies the HMAC signature.
-4. It queries `/api/v1/supporters/{supporter_id}` and reads the returned `referer`.
-5. Only a referer matching one of the four exact `cyclope205` repositories is accepted.
-6. The matching README is updated; an unknown attribution is ignored rather than guessing.
-
-The Buy Me a Coffee webhook schema itself does not contain the repository source, so the supporter API's `referer` field is used as the attribution bridge. The supporter API documents `referer` as a supporter field.
+PayPal's official documentation supports sandbox webhook simulation, so the listener can be tested without making a live donation. Mock events cannot be verified through PayPal's postback verification endpoint, so live/sandbox signed events must be used for end-to-end signature verification. citeturn2search5turn2search1
