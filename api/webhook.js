@@ -35,7 +35,7 @@ function repoFromReferer(referer) {
   if (!referer || typeof referer !== "string") return null;
 
   try {
-    const url = new URL(referer);
+    const url = new URL(referer, "https://placeholder.invalid");
     const explicit = url.searchParams.get("repo");
     if (explicit && REPOSITORIES.has(explicit)) return explicit;
   } catch {}
