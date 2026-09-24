@@ -54,7 +54,21 @@ module.exports = async function handler(req, res) {
     const result = await response.json();
     if (result.status !== "COMPLETED") return res.status(409).send("PayPal payment was not completed");
 
-    const repo = result.purchase_units?.[0]?.custom_id?.replace(/^repo:/, "");
+    let repoSource = result;
+    if (!result.purchase_units?.[0]?.custom_id) {
+      const orderResponse = await fetch(`${getBaseUrl()}/v2/checkout/orders/${encodeURIComponent(orderId)}`, {
+        method: "GET",
+        headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+      });
+      if (!orderResponse.ok) {
+        const body = await orderResponse.text();
+        console.error("PayPal order lookup failed", body.slice(0, 500));
+        return res.status(502).send("PayPal order lookup failed");
+      }
+      repoSource = await orderResponse.json();
+    }
+
+    const repo = repoSource.purchase_units?.[0]?.custom_id?.replace(/^repo:/, "");
     if (!/^(changelog-traduction|suivi-stock-pellet|programme-tnt-fr|recettes-express)$/.test(repo || "")) {
       return res.status(500).send("Invalid repository attribution");
     }
