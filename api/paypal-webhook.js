@@ -1,3 +1,5 @@
+const crypto = require("crypto");
+
 const REPOSITORIES = new Set([
   "changelog-traduction",
   "suivi-stock-pellet",
@@ -53,31 +55,50 @@ async function getAccessToken() {
   return (await response.json()).access_token;
 }
 
+function crc32(buffer) {
+  let crc = 0xffffffff;
+  for (const byte of buffer) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit++) {
+      crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
+    }
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
 async function verifyWebhook(rawBody, headers) {
   const webhookId = process.env.PAYPAL_WEBHOOK_ID;
   if (!webhookId) throw new Error("PAYPAL_WEBHOOK_ID is not configured");
 
-  const token = await getAccessToken();
-  const response = await fetch(`${getBaseUrl()}/v1/notifications/verify-webhook-signature`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify({
-      auth_algo: headers["paypal-auth-algo"],
-      cert_url: headers["paypal-cert-url"],
-      transmission_id: headers["paypal-transmission-id"],
-      transmission_sig: headers["paypal-transmission-sig"],
-      transmission_time: headers["paypal-transmission-time"],
-      webhook_id: webhookId,
-      webhook_event: JSON.parse(rawBody.toString("utf8")),
-    }),
-  });
+  const transmissionId = headers["paypal-transmission-id"];
+  const transmissionTime = headers["paypal-transmission-time"];
+  const transmissionSig = headers["paypal-transmission-sig"];
+  const certUrl = headers["paypal-cert-url"];
 
-  if (!response.ok) return false;
-  return (await response.json()).verification_status === "SUCCESS";
+  if (!transmissionId || !transmissionTime || !transmissionSig || !certUrl) return false;
+
+  const certResponse = await fetch(certUrl);
+  if (!certResponse.ok) return false;
+  const certPem = await certResponse.text();
+
+  const crc = crc32(rawBody);
+  const message = `${transmissionId}|${transmissionTime}|${webhookId}|${crc}`;
+  const verifier = crypto.createVerify("SHA256");
+  verifier.update(message);
+  verifier.end();
+
+  if (verifier.verify(certPem, Buffer.from(transmissionSig, "base64"))) return true;
+
+  // PayPal's simulator signs mock events with the literal webhook ID WEBHOOK_ID.
+  if (process.env.PAYPAL_ALLOW_SIMULATOR === "true") {
+    const simulatorMessage = `${transmissionId}|${transmissionTime}|WEBHOOK_ID|${crc}`;
+    const simulatorVerifier = crypto.createVerify("SHA256");
+    simulatorVerifier.update(simulatorMessage);
+    simulatorVerifier.end();
+    return simulatorVerifier.verify(certPem, Buffer.from(transmissionSig, "base64"));
+  }
+
+  return false;
 }
 
 async function getOrder(orderId, token) {
@@ -171,15 +192,16 @@ module.exports = async function handler(req, res) {
       return res.status(200).json({ ok: true, ignored: true, event_id: event.id ?? null });
     }
 
-    const repo = repoFromCustomId(event.resource?.custom_id);
-    if (!repo) {
+    const orderId = event.resource?.supplementary_data?.related_ids?.order_id;
+    const token = await getAccessToken();
+    const order = await getOrder(orderId, token);
+    if (order?.status !== "COMPLETED") {
       return res.status(200).json({ ok: true, attributed: false, event_id: event.id ?? null });
     }
 
-    const token = await getAccessToken();
-    const orderId = event.resource?.supplementary_data?.related_ids?.order_id;
-    const order = await getOrder(orderId, token);
-    if (order?.status !== "COMPLETED") {
+    const customId = order.purchase_units?.[0]?.custom_id;
+    const repo = repoFromCustomId(customId);
+    if (!repo) {
       return res.status(200).json({ ok: true, attributed: false, event_id: event.id ?? null });
     }
 
