@@ -1,0 +1,143 @@
+name: Sync GitHub Sponsors
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Sync public sponsors into all project READMEs
+        env:
+          SPONSORS_TOKEN: ${{ secrets.SPONSORS_TOKEN }}
+        run: |
+          node <<'NODE'
+          const token = process.env.SPONSORS_TOKEN;
+          if (!token) {
+            console.log("SPONSORS_TOKEN is not configured; nothing to sync.");
+            process.exit(0);
+          }
+
+          const repos = [
+            "cyclope205/changelog-traduction",
+            "cyclope205/suivi-stock-pellet",
+            "cyclope205/programme-tnt-fr",
+            "cyclope205/recettes-express",
+          ];
+
+          const graphql = async (query) => {
+            const response = await fetch("https://api.github.com/graphql", {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+                "User-Agent": "cyclope205-github-sponsors-sync",
+              },
+              body: JSON.stringify({ query }),
+            });
+            const data = await response.json();
+            if (!response.ok || data.errors) {
+              throw new Error(JSON.stringify(data.errors || data));
+            }
+            return data.data;
+          };
+
+          const data = await graphql(`
+            query {
+              viewer {
+                sponsorshipsAsMaintainer(
+                  first: 100
+                  activeOnly: true
+                  includePrivate: false
+                ) {
+                  nodes {
+                    sponsorEntity {
+                      ... on User { login }
+                      ... on Organization { login }
+                    }
+                  }
+                }
+              }
+            }
+          `);
+
+          const sponsors = [...new Set(
+            data.viewer.sponsorshipsAsMaintainer.nodes
+              .map(node => node.sponsorEntity?.login)
+              .filter(Boolean)
+          )].sort((a, b) => a.localeCompare(b));
+
+          const sponsorBlock = [
+            "<!--START_SECTION:github-sponsors-->",
+            sponsors.length
+              ? sponsors.map(login => `- ❤️ [@${login}](https://github.com/${login})`).join("\\n")
+              : "<!-- Aucun sponsor GitHub public actif pour le moment -->",
+            "<!--END_SECTION:github-sponsors-->",
+          ].join("\\n");
+
+          const apiHeaders = {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2026-03-10",
+            "User-Agent": "cyclope205-github-sponsors-sync",
+          };
+
+          for (const repo of repos) {
+            const getResponse = await fetch(
+              `https://api.github.com/repos/${repo}/contents/README.md`,
+              { headers: apiHeaders }
+            );
+            const file = await getResponse.json();
+            if (!getResponse.ok) throw new Error(`README fetch failed for ${repo}: ${JSON.stringify(file)}`);
+
+            const content = Buffer.from(file.content.replace(/\\n/g, ""), "base64").toString("utf8");
+            const start = "<!--START_SECTION:github-sponsors-->";
+            const end = "<!--END_SECTION:github-sponsors-->";
+            const startIndex = content.indexOf(start);
+            const endIndex = content.indexOf(end);
+
+            let updated;
+            if (startIndex >= 0 && endIndex > startIndex) {
+              updated =
+                content.slice(0, startIndex) +
+                sponsorBlock +
+                content.slice(endIndex + end.length);
+            } else {
+              const heading = "### ❤️ Sponsors GitHub";
+              const donorHeading = "### ☕ Merci aux donateurs";
+              const insertion = `\\n\\n${heading}\\n\\n${sponsorBlock}\\n`;
+              const donorIndex = content.indexOf(donorHeading);
+              if (donorIndex >= 0) {
+                const afterHeading = donorIndex + donorHeading.length;
+                updated = content.slice(0, afterHeading) + insertion + content.slice(afterHeading);
+              } else {
+                updated = content.replace(/^/, `${heading}\\n\\n${sponsorBlock}\\n\\n`);
+              }
+            }
+
+            if (updated === content) {
+              console.log(`${repo}: already up to date`);
+              continue;
+            }
+
+            const putResponse = await fetch(
+              `https://api.github.com/repos/${repo}/contents/README.md`,
+              {
+                method: "PUT",
+                headers: { ...apiHeaders, "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  message: "chore: sync GitHub Sponsors",
+                  content: Buffer.from(updated, "utf8").toString("base64"),
+                  sha: file.sha,
+                }),
+              }
+            );
+            const result = await putResponse.json();
+            if (!putResponse.ok) {
+              throw new Error(`README update failed for ${repo}: ${JSON.stringify(result)}`);
+            }
+            console.log(`${repo}: updated (${result.commit?.sha || "commit created"})`);
+          }
+          NODE
