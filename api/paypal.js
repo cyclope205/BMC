@@ -125,9 +125,13 @@ module.exports = async function handler(req, res) {
       .replace(/\\s+/g, " ")
       .trim()
       .slice(0, 180);
-    const description = comment
-      ? `Donation for cyclope205/${repo} — Message: ${comment}`
-      : `Donation for cyclope205/${repo}`;
+    const commentToken = comment
+      ? Buffer.from(comment, "utf8").toString("base64url")
+      : "";
+    const customId = commentToken
+      ? `repo:${repo}|msg:${commentToken}`
+      : `repo:${repo}`;
+    const description = `Donation for cyclope205/${repo}`;
 
     const response = await fetch(`${getBaseUrl()}/v2/checkout/orders`, {
       method: "POST",
@@ -141,7 +145,7 @@ module.exports = async function handler(req, res) {
         intent: "CAPTURE",
         purchase_units: [{
           description,
-          custom_id: `repo:${repo}`,
+          custom_id: customId,
           amount: { currency_code: currency, value: amount.toFixed(2) },
         }],
         payment_source: {
