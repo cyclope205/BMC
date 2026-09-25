@@ -125,15 +125,25 @@ module.exports = async function handler(req, res) {
       });
 
       // Keep the order ID only as an invisible HTML marker for duplicate protection.
-      const rawDescription = String(
-        result.purchase_units?.[0]?.description
-        ?? repoSource.purchase_units?.[0]?.description
-        ?? ""
-      );
-      const commentMatch = rawDescription.match(/(?:^|\s)— Message:\s*(.+)$/);
-      const comment = commentMatch
-        ? commentMatch[1].replace(/\s+/g, " ").trim().slice(0, 180)
-        : "";
+      let comment = "";
+      if (encodedComment) {
+        try {
+          comment = Buffer.from(encodedComment, "base64url").toString("utf8").slice(0, 180);
+        } catch {
+          comment = "";
+        }
+      }
+      if (!comment) {
+        const rawDescription = String(
+          result.purchase_units?.[0]?.description
+          ?? repoSource.purchase_units?.[0]?.description
+          ?? ""
+        );
+        const commentMatch = rawDescription.match(/(?:^|\s)— Message:\s*(.+)$/);
+        comment = commentMatch
+          ? commentMatch[1].replace(/\s+/g, " ").trim().slice(0, 180)
+          : "";
+      }
       const safeComment = comment
         .replace(/[<>]/g, "")
         .replace(/[`*_]/g, "")
