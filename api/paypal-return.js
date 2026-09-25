@@ -73,6 +73,78 @@ module.exports = async function handler(req, res) {
       return res.status(500).send("Invalid repository attribution");
     }
 
+    // The return URL is the most reliable place to persist the supporter:
+    // here we already have the captured order and its custom_id. The webhook
+    // remains a backup for payments where the buyer never returns to the site.
+    const githubToken = process.env.GITHUB_TOKEN;
+    if (!githubToken) throw new Error("GITHUB_TOKEN is not configured");
+
+    const apiUrl = `https://api.github.com/repos/cyclope205/${repo}/contents/README.md`;
+    const headers = {
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${githubToken}`,
+      "X-GitHub-Api-Version": "2026-03-10",
+    };
+    const readmeResponse = await fetch(apiUrl, { headers });
+    if (!readmeResponse.ok) throw new Error(`GitHub README GET returned HTTP ${readmeResponse.status}`);
+
+    const file = await readmeResponse.json();
+    const current = Buffer.from(file.content.replace(/\\s/g, ""), "base64").toString("utf8");
+    const startMarker = "<!--START_SECTION:paypal-->";
+    const endMarker = "<!--END_SECTION:paypal-->";
+    const orderMarker = `order:${orderId}`;
+
+    if (!current.includes(orderMarker)) {
+      const payer = result.payer?.name;
+      const donorName = payer
+        ? [payer.given_name, payer.surname].filter(Boolean).join(" ")
+        : "PayPal donor";
+      const clean = donorName.trim();
+      const parts = clean.split(/\\s+/).filter(Boolean);
+      const name = parts.length >= 2 ? `${parts[0]} ${parts[1][0]}*****` : (clean ? clean[0] + "*****" : "Anonymous");
+      const amount = result.purchase_units?.[0]?.payments?.captures?.[0]?.amount?.value
+        ?? result.purchase_units?.[0]?.amount?.value
+        ?? "?";
+      const currency = result.purchase_units?.[0]?.payments?.captures?.[0]?.amount?.currency_code
+        ?? result.purchase_units?.[0]?.amount?.currency_code
+        ?? "";
+      const entry = `- 💙 **${name}** — ${amount} ${currency} (${new Date().toISOString().slice(0, 10)}) — ${orderMarker}`;
+
+      const existingStart = current.indexOf(startMarker);
+      const existingEnd = current.indexOf(endMarker);
+      let updated;
+
+      if (existingStart >= 0 && existingEnd > existingStart) {
+        updated = current.slice(0, existingEnd) + "\n" + entry + current.slice(existingEnd);
+      } else {
+        const heading = "### ☕ Merci aux donateurs";
+        const headingIndex = current.indexOf(heading);
+        if (headingIndex >= 0) {
+          const insertAt = current.indexOf("\n", headingIndex) + 1;
+          const block = `${startMarker}\n${entry}\n${endMarker}`;
+          updated = current.slice(0, insertAt) + "\n" + block + "\n" + current.slice(insertAt);
+        } else {
+          const block = `${startMarker}\n${entry}\n${endMarker}`;
+          updated = current.trimEnd() + `\\n\\n${heading}\\n\\n${block}\\n`;
+        }
+      }
+
+      const putResponse = await fetch(apiUrl, {
+        method: "PUT",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: "chore: add PayPal supporter",
+          content: Buffer.from(updated, "utf8").toString("base64"),
+          sha: file.sha,
+          branch: "main",
+        }),
+      });
+      if (!putResponse.ok) {
+        const body = await putResponse.text();
+        throw new Error(`GitHub README PUT returned HTTP ${putResponse.status}: ${body.slice(0, 300)}`);
+      }
+    }
+
     return res.redirect(302, `https://github.com/cyclope205/${repo}`);
   } catch (error) {
     console.error("PayPal return error", error);
