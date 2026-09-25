@@ -71,24 +71,33 @@ label{display:block;text-align:left;margin:0 0 7px;font-size:14px;font-weight:65
 textarea{width:100%;resize:vertical;min-height:78px;margin:0 0 14px;padding:12px 13px;border:1px solid rgba(23,33,43,.12);border-radius:12px;background:rgba(255,255,255,.55);font:inherit;color:#17212b;outline:none}
 textarea:focus{border-color:rgba(0,112,186,.45);box-shadow:0 0 0 3px rgba(0,112,186,.08)}
 .amount{margin-top:14px;color:#5c6873;font-size:14px}
-</style>
+select,input[type=number]{width:100%;padding:12px 13px;margin:0 0 14px;border:1px solid rgba(23,33,43,.12);border-radius:12px;background:rgba(255,255,255,.55);font:inherit;color:#17212b;outline:none}</style>
 </head>
 <body>
 <main class="card">
 <div class="heart">💙</div>
 <div class="logo">Soutenir le projet</div>
 <div class="repo">cyclope205/${safeRepo}</div>
-<form action="${action}" method="GET">
+<form action="/api/paypal" method="GET" id="donationForm">
 <input type="hidden" name="repo" value="${safeRepo}">
-<input type="hidden" name="amount" value="${escapeHtml(amount)}">
 <input type="hidden" name="pay" value="1">
+<input type="hidden" name="amount" id="amountValue" value="5">
+<label for="amountChoice">Montant</label>
+<select id="amountChoice" aria-label="Choisir le montant">
+<option value="5">5 €</option><option value="10">10 €</option><option value="15">15 €</option><option value="custom">Personnalisé</option>
+</select>
+<div id="customWrap" hidden><input id="customAmount" type="number" min="1" max="1000" step="0.01" placeholder="Montant en €"></div>
 <label for="comment">Message (facultatif)</label>
 <textarea id="comment" name="comment" maxlength="180" placeholder="Votre message..." rows="3"></textarea>
 <button class="paypal" type="submit">Payer avec PayPal</button>
 </form>
-<div class="amount">Montant : ${escapeHtml(amount)} €</div>
+<div class="amount">Choisissez 5 €, 10 €, 15 € ou un montant personnalisé.</div>
 </main>
-</body>
+<script>
+const choice=document.getElementById("amountChoice"),wrap=document.getElementById("customWrap"),custom=document.getElementById("customAmount"),value=document.getElementById("amountValue");
+choice.addEventListener("change",()=>{wrap.hidden=choice.value!=="custom";if(choice.value!=="custom")value.value=choice.value});
+document.getElementById("donationForm").addEventListener("submit",e=>{if(choice.value==="custom"){const v=Number(custom.value);if(!Number.isFinite(v)||v<1||v>1000){e.preventDefault();custom.focus();return}value.value=v.toFixed(2)}});
+</script></body>
 </html>`);
 }
 
