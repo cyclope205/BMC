@@ -72,10 +72,10 @@ jobs:
           const sponsorBlock = [
             "<!--START_SECTION:github-sponsors-->",
             sponsors.length
-              ? sponsors.map(login => `- ❤️ [@${login}](https://github.com/${login})`).join("\\n")
+              ? sponsors.map(login => `- ❤️ [@${login}](https://github.com/${login})`).join("\n")
               : "<!-- Aucun sponsor GitHub public actif pour le moment -->",
             "<!--END_SECTION:github-sponsors-->",
-          ].join("\\n");
+          ].join("\n");
 
           const apiHeaders = {
             Authorization: `Bearer ${token}`,
@@ -92,7 +92,7 @@ jobs:
             const file = await getResponse.json();
             if (!getResponse.ok) throw new Error(`README fetch failed for ${repo}: ${JSON.stringify(file)}`);
 
-            const content = Buffer.from(file.content.replace(/\\n/g, ""), "base64").toString("utf8");
+            const content = Buffer.from(file.content.replace(/\n/g, ""), "base64").toString("utf8");
             const start = "<!--START_SECTION:github-sponsors-->";
             const end = "<!--END_SECTION:github-sponsors-->";
             const startIndex = content.indexOf(start);
@@ -107,13 +107,13 @@ jobs:
             } else {
               const heading = "### ❤️ Sponsors GitHub";
               const donorHeading = "### ☕ Merci aux donateurs";
-              const insertion = `\\n\\n${heading}\\n\\n${sponsorBlock}\\n`;
+              const insertion = `\n\n${heading}\n\n${sponsorBlock}\n`;
               const donorIndex = content.indexOf(donorHeading);
               if (donorIndex >= 0) {
                 const afterHeading = donorIndex + donorHeading.length;
                 updated = content.slice(0, afterHeading) + insertion + content.slice(afterHeading);
               } else {
-                updated = content.replace(/^/, `${heading}\\n\\n${sponsorBlock}\\n\\n`);
+                updated = content.replace(/^/, `${heading}\n\n${sponsorBlock}\n\n`);
               }
             }
 
