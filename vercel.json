@@ -6,6 +6,10 @@
   },
   "rewrites": [
     {
+      "source": "/p/:code",
+      "destination": "/api/paypal?repo=:code&amount=5"
+    },
+    {
       "source": "/paypal/:repo",
       "destination": "/api/paypal?repo=:repo&amount=5"
     }
