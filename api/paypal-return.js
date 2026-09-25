@@ -121,7 +121,7 @@ module.exports = async function handler(req, res) {
       });
 
       // Keep the order ID only as an invisible HTML marker for duplicate protection.
-      const entry = `- 💙 **${name}** · ${formattedAmount} ${displayCurrency} · ${date} <!-- ${orderMarker} -->`;
+      const entry = `- 💙 ${name} · ${formattedAmount} ${displayCurrency} · ${date} <!-- ${orderMarker} -->`;
 
       const existingStart = current.indexOf(startMarker);
       const existingEnd = current.indexOf(endMarker);
