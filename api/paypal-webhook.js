@@ -195,15 +195,15 @@ module.exports = async function handler(req, res) {
     const orderId = event.resource?.supplementary_data?.related_ids?.order_id;
     const token = await getAccessToken();
     const order = await getOrder(orderId, token);
-    if (order?.status !== "COMPLETED") {
-      return res.status(200).json({ ok: true, attributed: false, event_id: event.id ?? null });
-    }
 
+    // PAYMENT.CAPTURE.COMPLETED is already the authoritative completion event.
+    // The order lookup is only enrichment/fallback data and must not block attribution.
     const customId =
-      order.purchase_units?.[0]?.custom_id ||
       event.resource?.custom_id ||
+      event.resource?.purchase_units?.[0]?.custom_id ||
       event.resource?.supplementary_data?.custom_id ||
-      event.resource?.purchase_units?.[0]?.custom_id;
+      order?.purchase_units?.[0]?.custom_id ||
+      order?.purchase_units?.[0]?.payments?.captures?.[0]?.custom_id;
     const repo = repoFromCustomId(customId);
     if (!repo) {
       return res.status(200).json({ ok: true, attributed: false, event_id: event.id ?? null });
@@ -214,7 +214,7 @@ module.exports = async function handler(req, res) {
 
     const enrichedEvent = {
       ...event,
-      resource: { ...event.resource, payer: order.payer },
+      resource: { ...event.resource, payer: order?.payer || event.resource?.payer },
     };
 
     const result = await updateReadme(repo, enrichedEvent, githubToken);
