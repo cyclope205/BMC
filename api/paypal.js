@@ -121,8 +121,8 @@ module.exports = async function handler(req, res) {
     const token = await getAccessToken();
     const currency = process.env.PAYPAL_CURRENCY || "EUR";
     const comment = String(req.query?.comment || "")
-      .replace(/[\\r\\n]+/g, " ")
-      .replace(/\\s+/g, " ")
+      .replace(/[\r\n]+/g, " ")
+      .replace(/\s+/g, " ")
       .trim()
       .slice(0, 180);
     const commentToken = comment
