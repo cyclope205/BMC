@@ -205,6 +205,13 @@ module.exports = async function handler(req, res) {
       order?.purchase_units?.[0]?.custom_id ||
       order?.purchase_units?.[0]?.payments?.captures?.[0]?.custom_id;
     const repo = repoFromCustomId(customId);
+    console.log("PayPal webhook attribution", {
+      event_type: event.event_type,
+      event_id: event.id ?? null,
+      order_id: orderId ?? null,
+      custom_id: customId ?? null,
+      repository: repo ?? null,
+    });
     if (!repo) {
       return res.status(200).json({ ok: true, attributed: false, event_id: event.id ?? null });
     }
