@@ -68,10 +68,13 @@ module.exports = async function handler(req, res) {
       repoSource = await orderResponse.json();
     }
 
-    const repo = repoSource.purchase_units?.[0]?.custom_id?.replace(/^repo:/, "");
-    if (!/^(changelog-traduction|suivi-stock-pellet|programme-tnt-fr|recettes-express)$/.test(repo || "")) {
+    const customId = String(repoSource.purchase_units?.[0]?.custom_id || "");
+    const customMatch = customId.match(/^repo:([^|]+)(?:\\|msg:([A-Za-z0-9_-]+))?$/);
+    const repo = customMatch?.[1] || "";
+    if (!/^(changelog-traduction|suivi-stock-pellet|programme-tnt-fr|recettes-express)$/.test(repo)) {
       return res.status(500).send("Invalid repository attribution");
     }
+    let encodedComment = customMatch?.[2] || "";
 
     const githubToken = process.env.GITHUB_TOKEN;
     if (!githubToken) throw new Error("GITHUB_TOKEN is not configured");
