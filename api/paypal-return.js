@@ -69,8 +69,10 @@ module.exports = async function handler(req, res) {
     }
 
     const customId = String(repoSource.purchase_units?.[0]?.custom_id || "");
-    const customMatch = customId.match(/^repo:([^|]+)(?:\|msg:([A-Za-z0-9_-]+))?$/);
-    const repo = customMatch?.[1] || "";
+    const repoAndMessage = customId.startsWith("repo:") ? customId.slice(5) : "";
+    const separator = repoAndMessage.indexOf("|msg:");
+    const repo = separator >= 0 ? repoAndMessage.slice(0, separator) : repoAndMessage;
+    const encodedComment = separator >= 0 ? repoAndMessage.slice(separator + 5) : "";
     if (!/^(changelog-traduction|suivi-stock-pellet|programme-tnt-fr|recettes-express)$/.test(repo)) {
       return res.status(500).send("Invalid repository attribution");
     }
