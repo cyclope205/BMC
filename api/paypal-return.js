@@ -69,7 +69,7 @@ module.exports = async function handler(req, res) {
     }
 
     const customId = String(repoSource.purchase_units?.[0]?.custom_id || "");
-    const customMatch = customId.match(/^repo:([^|]+)(?:\\|msg:([A-Za-z0-9_-]+))?$/);
+    const customMatch = customId.match(/^repo:([^|]+)(?:\|msg:([A-Za-z0-9_-]+))?$/);
     const repo = customMatch?.[1] || "";
     if (!/^(changelog-traduction|suivi-stock-pellet|programme-tnt-fr|recettes-express)$/.test(repo)) {
       return res.status(500).send("Invalid repository attribution");
