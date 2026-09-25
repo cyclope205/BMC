@@ -199,7 +199,11 @@ module.exports = async function handler(req, res) {
       return res.status(200).json({ ok: true, attributed: false, event_id: event.id ?? null });
     }
 
-    const customId = order.purchase_units?.[0]?.custom_id;
+    const customId =
+      order.purchase_units?.[0]?.custom_id ||
+      event.resource?.custom_id ||
+      event.resource?.supplementary_data?.custom_id ||
+      event.resource?.purchase_units?.[0]?.custom_id;
     const repo = repoFromCustomId(customId);
     if (!repo) {
       return res.status(200).json({ ok: true, attributed: false, event_id: event.id ?? null });
