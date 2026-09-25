@@ -126,17 +126,17 @@ module.exports = async function handler(req, res) {
         ?? repoSource.purchase_units?.[0]?.description
         ?? ""
       );
-      const commentMatch = rawDescription.match(/(?:^|\\s)— Message:\\s*(.+)$/);
+      const commentMatch = rawDescription.match(/(?:^|\s)— Message:\s*(.+)$/);
       const comment = commentMatch
-        ? commentMatch[1].replace(/\\s+/g, " ").trim().slice(0, 180)
+        ? commentMatch[1].replace(/\s+/g, " ").trim().slice(0, 180)
         : "";
       const safeComment = comment
         .replace(/[<>]/g, "")
         .replace(/[`*_]/g, "")
-        .replace(/\\|/g, "¦")
+        .replace(/\|/g, "¦")
         .trim();
       const entry = safeComment
-        ? `- 💙 ${name} · ${formattedAmount} ${displayCurrency} · ${date} — « ${safeComment} » <!-- ${orderMarker} -->`
+        ? `- 💙 ${name} · ${formattedAmount} ${displayCurrency} · ${date}\n  > ${safeComment} <!-- ${orderMarker} -->`
         : `- 💙 ${name} · ${formattedAmount} ${displayCurrency} · ${date} <!-- ${orderMarker} -->`;
 
       const existingStart = current.indexOf(startMarker);
