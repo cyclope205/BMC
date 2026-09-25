@@ -73,9 +73,6 @@ module.exports = async function handler(req, res) {
       return res.status(500).send("Invalid repository attribution");
     }
 
-    // The return URL is the most reliable place to persist the supporter:
-    // here we already have the captured order and its custom_id. The webhook
-    // remains a backup for payments where the buyer never returns to the site.
     const githubToken = process.env.GITHUB_TOKEN;
     if (!githubToken) throw new Error("GITHUB_TOKEN is not configured");
 
@@ -101,14 +98,30 @@ module.exports = async function handler(req, res) {
         : "PayPal donor";
       const clean = donorName.trim();
       const parts = clean.split(/\\s+/).filter(Boolean);
-      const name = parts.length >= 2 ? `${parts[0]} ${parts[1][0]}*****` : (clean ? clean[0] + "*****" : "Anonymous");
+      const name = parts.length >= 2
+        ? `${parts[0]} ${parts[1][0]}*****`
+        : (clean ? clean[0] + "*****" : "Anonymous");
+
       const amount = result.purchase_units?.[0]?.payments?.captures?.[0]?.amount?.value
         ?? result.purchase_units?.[0]?.amount?.value
         ?? "?";
       const currency = result.purchase_units?.[0]?.payments?.captures?.[0]?.amount?.currency_code
         ?? result.purchase_units?.[0]?.amount?.currency_code
         ?? "";
-      const entry = `- 💙 **${name}** — ${amount} ${currency} (${new Date().toISOString().slice(0, 10)}) — ${orderMarker}`;
+      const amountNumber = Number(amount);
+      const formattedAmount = Number.isFinite(amountNumber)
+        ? amountNumber.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        : amount;
+      const displayCurrency = currency === "EUR" ? "€" : currency;
+      const date = new Date().toLocaleDateString("fr-FR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        timeZone: "Europe/Paris",
+      });
+
+      // Keep the order ID only as an invisible HTML marker for duplicate protection.
+      const entry = `- 💙 **${name}** · ${formattedAmount} ${displayCurrency} · ${date} <!-- ${orderMarker} -->`;
 
       const existingStart = current.indexOf(startMarker);
       const existingEnd = current.indexOf(endMarker);
