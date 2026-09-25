@@ -76,7 +76,6 @@ module.exports = async function handler(req, res) {
     if (!/^(changelog-traduction|suivi-stock-pellet|programme-tnt-fr|recettes-express)$/.test(repo)) {
       return res.status(500).send("Invalid repository attribution");
     }
-    let encodedComment = customMatch?.[2] || "";
 
     const githubToken = process.env.GITHUB_TOKEN;
     if (!githubToken) throw new Error("GITHUB_TOKEN is not configured");
