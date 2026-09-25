@@ -66,7 +66,11 @@ function renderPage(res, repo, amount) {
 .card{width:min(440px,100%);padding:34px 28px;border:1px solid rgba(255,255,255,.7);border-radius:28px;background:rgba(255,255,255,.58);backdrop-filter:blur(24px);box-shadow:0 20px 60px rgba(20,40,60,.15);text-align:center}
 .logo{font-weight:800;font-size:22px;margin-bottom:18px}.heart{font-size:34px;margin-bottom:8px}.repo{font-size:18px;font-weight:650;margin:8px 0 26px}
 .paypal{display:block;width:100%;padding:15px 20px;border:0;border-radius:12px;background:#0070ba;color:#fff;font-size:17px;font-weight:700;text-decoration:none;cursor:pointer;box-shadow:0 6px 18px rgba(0,112,186,.25)}
-.paypal:hover{background:#005ea6}.amount{margin-top:14px;color:#5c6873;font-size:14px}
+.paypal:hover{background:#005ea6}
+label{display:block;text-align:left;margin:0 0 7px;font-size:14px;font-weight:650;color:#4d5964}
+textarea{width:100%;resize:vertical;min-height:78px;margin:0 0 14px;padding:12px 13px;border:1px solid rgba(23,33,43,.12);border-radius:12px;background:rgba(255,255,255,.55);font:inherit;color:#17212b;outline:none}
+textarea:focus{border-color:rgba(0,112,186,.45);box-shadow:0 0 0 3px rgba(0,112,186,.08)}
+.amount{margin-top:14px;color:#5c6873;font-size:14px}
 </style>
 </head>
 <body>
@@ -74,7 +78,14 @@ function renderPage(res, repo, amount) {
 <div class="heart">💙</div>
 <div class="logo">Soutenir le projet</div>
 <div class="repo">cyclope205/${safeRepo}</div>
-<a class="paypal" href="${action}">Payer avec PayPal</a>
+<form action="${action}" method="GET">
+<input type="hidden" name="repo" value="${safeRepo}">
+<input type="hidden" name="amount" value="${escapeHtml(amount)}">
+<input type="hidden" name="pay" value="1">
+<label for="comment">Message (facultatif)</label>
+<textarea id="comment" name="comment" maxlength="180" placeholder="Votre message..." rows="3"></textarea>
+<button class="paypal" type="submit">Payer avec PayPal</button>
+</form>
 <div class="amount">Montant : ${escapeHtml(amount)} €</div>
 </main>
 </body>
@@ -109,6 +120,14 @@ module.exports = async function handler(req, res) {
   try {
     const token = await getAccessToken();
     const currency = process.env.PAYPAL_CURRENCY || "EUR";
+    const comment = String(req.query?.comment || "")
+      .replace(/[\\r\\n]+/g, " ")
+      .replace(/\\s+/g, " ")
+      .trim()
+      .slice(0, 180);
+    const description = comment
+      ? `Donation for cyclope205/${repo} — Message: ${comment}`
+      : `Donation for cyclope205/${repo}`;
 
     const response = await fetch(`${getBaseUrl()}/v2/checkout/orders`, {
       method: "POST",
@@ -121,7 +140,7 @@ module.exports = async function handler(req, res) {
       body: JSON.stringify({
         intent: "CAPTURE",
         purchase_units: [{
-          description: `Donation for cyclope205/${repo}`,
+          description,
           custom_id: `repo:${repo}`,
           amount: { currency_code: currency, value: amount.toFixed(2) },
         }],
